@@ -7,9 +7,6 @@
 - 成員：Sunny、Jessica、Eri、Irene、Jennifer、Ally、巧雲、巧雲姐
 - 日期：2026/7/27、7/29，以及 2026/8/5～2026/12/30 每週三
 
-## 為什麼你剛傳的版本仍無法確認寫入
-
-你上傳的 ZIP 只有 `index.html` 與 README，缺少 `apps-script.gs`。此外，`index.html` 仍固定使用舊 Web App URL；若你曾建立「新的部署作業」，新部署 URL 不會自動寫回 GitHub 的 HTML。
 
 ## 安裝步驟
 
