@@ -601,15 +601,15 @@
   const SCRIPT_URL_KEY = 'absenceTrackerScriptUrl';
 
   // ⬇️ 將下方 YOUR_APPS_SCRIPT_URL 換成你的 Google Apps Script 網址
-  let scriptUrl = 'https://script.google.com/macros/s/AKfycbwUmIqIy5ZG54Mp1ZGu_Tvc0Xb1RdxcHEu0VkoQuVwLCvaHB7x2aFaiy1CaGUI1O9aB/exec';
+  let scriptUrl = 'https://script.google.com/macros/s/AKfycbw1ukGomuZitQxh6TfyKsFWTKszt6YfklaVIbM3gnm10bysArkhi9x9KW-1ihsVkm6Q/exec';
   let allData = {}; // { person: [dateStr, ...] }
 
   // ── Generate class dates ─────────────────────────────────
   // 7/27 當週：週一(7/27)＆週三(7/29)；8月起：每週三
   function getClassDates() {
     const dates = [new Date(2026, 6, 27), new Date(2026, 6, 29)];
-    const start = new Date(2026, 7, 1);  // Aug 1
-    const end   = new Date(2026, 9, 31); // Oct 31
+    const start = new Date(2026, 7, 1);  // 
+    const end   = new Date(2026, 12, 31); // 
     const d = new Date(start);
     while (d <= end) {
       if (d.getDay() === 3) {
