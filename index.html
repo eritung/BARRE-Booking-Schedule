@@ -520,18 +520,6 @@
 
 <main>
 
-  <!-- Connection diagnostics -->
-  <div class="config-notice" id="connection-card">
-    <strong>Google Sheets 連線</strong>
-    <div style="margin-top:4px">這個網址必須是目前已部署的 Apps Script Web App（結尾為 <code>/exec</code>）。</div>
-    <div class="config-url-field">
-      <input id="script-url-input" type="url" spellcheck="false" aria-label="Apps Script Web App URL" />
-      <button type="button" onclick="saveScriptUrlAndTest()">儲存並測試</button>
-    </div>
-    <div id="connection-result" style="margin-top:8px;font-size:12px"></div>
-  </div>
-
-
   <!-- Person selector -->
   <div class="selector-card">
     <label for="person">現在填寫的是誰？</label>
@@ -540,12 +528,12 @@
         <option value="">── 請選擇 ──</option>
         <option>Sunny</option>
         <option>Jennifer</option>
+        <option>巧雲</option>
+        <option>巧雲姐</option>
         <option>Eri</option>
         <option>Irene</option>
         <option>Ally</option>
         <option>Jessica</option>
-        <option>巧雲</option>
-        <option>巧雲姐</option>
       </select>
     </div>
   </div>
@@ -612,10 +600,7 @@
   const PEOPLE = ['Sunny', 'Jessica', 'Eri', 'Irene', 'Jennifer', 'Ally', '巧雲', '巧雲姐'];
   const EXPECTED_SPREADSHEET_ID = '1bIXGJTm5rqydW_U1cjzgKa3Cmt7jcseAphwcRcvifrM';
   const EXPECTED_SHEET_ID = 905430503;
-  const SCRIPT_URL_KEY = 'absenceTrackerScriptUrl';
-  const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzzG_sNjKzoHPEu2nKBOSQ2MLKrH_K-imf_ilZHBaku-F3FQlV2KRug0gQoHySonJF1/exec';
-
-  let scriptUrl = localStorage.getItem(SCRIPT_URL_KEY) || DEFAULT_SCRIPT_URL;
+  const scriptUrl = 'https://script.google.com/macros/s/AKfycbzu4EYkFZvjWmYyQRGnaw5Xz4E0ZpV99tpVMOuZnayspAKIbiRpGQBUNf_na7pYXT4U/exec';
   let allData = {};
 
   // ── Generate Jul 27/29 plus Wednesdays from Aug through Dec 2026 ──
@@ -657,37 +642,11 @@
 
   // ── UI init ──────────────────────────────────────────────
   window.onload = async () => {
-    document.getElementById('script-url-input').value = scriptUrl;
     buildDateGrid([]);
-    await testConnection(false);
-    await loadAllData();
+    setStatus('loading', '正在連線 Google Sheets…');
+    const connected = await testConnection();
+    if (connected) await loadAllData();
   };
-
-  function setConnectionResult(message, ok = false) {
-    const el = document.getElementById('connection-result');
-    el.textContent = message;
-    el.style.color = ok ? '#58715b' : '#a34234';
-  }
-
-  function normalizeScriptUrl(value) {
-    const url = String(value || '').trim();
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/(exec|dev)(\?.*)?$/.test(url)) {
-      throw new Error('請貼上 Apps Script 的 Web App 網址，且網址需以 /exec 結尾');
-    }
-    return url.split('?')[0];
-  }
-
-  async function saveScriptUrlAndTest() {
-    try {
-      scriptUrl = normalizeScriptUrl(document.getElementById('script-url-input').value);
-      localStorage.setItem(SCRIPT_URL_KEY, scriptUrl);
-      setConnectionResult('正在測試連線…');
-      const ok = await testConnection(true);
-      if (ok) await loadAllData();
-    } catch (error) {
-      setConnectionResult(error.message);
-    }
-  }
 
   // ── Build date grid ──────────────────────────────────────
   function buildDateGrid(checked) {
@@ -807,7 +766,7 @@
     return payload;
   }
 
-  async function testConnection(showSuccess = true) {
+  async function testConnection() {
     try {
       const payload = await callApi({ action: 'ping' });
       if (payload.spreadsheetId !== EXPECTED_SPREADSHEET_ID) {
@@ -816,12 +775,9 @@
       if (Number(payload.sheetId) !== EXPECTED_SHEET_ID) {
         throw new Error(`目前 Web App 綁到錯誤分頁 gid：${payload.sheetId || '未回傳 gid'}`);
       }
-      if (showSuccess) {
-        setConnectionResult(`✓ 連線成功｜${payload.sheetName || '工作表'}｜後端 ${payload.version || '已連線'}`, true);
-      }
       return true;
     } catch (error) {
-      setConnectionResult(`✕ ${error.message}`);
+      setStatus('error', `連線失敗：${error.message}`);
       return false;
     }
   }
