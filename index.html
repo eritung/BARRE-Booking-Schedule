@@ -515,10 +515,22 @@
 <header>
   <div class="header-label">Attendance Tracker · 2026</div>
   <h1>無法出席日期登記</h1>
-  <p>請選擇您的名字，並勾選所有無法出席的週三</p>
+  <p>請選擇您的名字，並勾選所有無法出席的開放日期</p>
 </header>
 
 <main>
+
+  <!-- Connection diagnostics -->
+  <div class="config-notice" id="connection-card">
+    <strong>Google Sheets 連線</strong>
+    <div style="margin-top:4px">這個網址必須是目前已部署的 Apps Script Web App（結尾為 <code>/exec</code>）。</div>
+    <div class="config-url-field">
+      <input id="script-url-input" type="url" spellcheck="false" aria-label="Apps Script Web App URL" />
+      <button type="button" onclick="saveScriptUrlAndTest()">儲存並測試</button>
+    </div>
+    <div id="connection-result" style="margin-top:8px;font-size:12px"></div>
+  </div>
+
 
   <!-- Person selector -->
   <div class="selector-card">
@@ -532,6 +544,8 @@
         <option>Irene</option>
         <option>Ally</option>
         <option>Jessica</option>
+        <option>巧雲</option>
+        <option>巧雲姐</option>
       </select>
     </div>
   </div>
@@ -546,7 +560,7 @@
   <div class="dates-section" id="dates-section">
     <div class="section-header">
       <div class="section-title">請勾選無法出席的日期</div>
-      <div class="section-hint">僅顯示週三</div>
+      <div class="section-hint">7/27、7/29＋8–12 月每週三</div>
     </div>
 
     <div id="dates-container"></div>
@@ -595,26 +609,28 @@
 
 <script>
   // ── Config ───────────────────────────────────────────────
-  const PEOPLE = ['Sunny', 'Jennifer', 'Eri', 'Irene', 'Ally', 'Jessica'];
+  const PEOPLE = ['Sunny', 'Jessica', 'Eri', 'Irene', 'Jennifer', 'Ally', '巧雲', '巧雲姐'];
+  const EXPECTED_SPREADSHEET_ID = '1bIXGJTm5rqydW_U1cjzgKa3Cmt7jcseAphwcRcvifrM';
+  const EXPECTED_SHEET_ID = 905430503;
   const SCRIPT_URL_KEY = 'absenceTrackerScriptUrl';
+  const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzzG_sNjKzoHPEu2nKBOSQ2MLKrH_K-imf_ilZHBaku-F3FQlV2KRug0gQoHySonJF1/exec';
 
-  // ⬇️ 將下方 YOUR_APPS_SCRIPT_URL 換成你的 Google Apps Script 網址
-  let scriptUrl = 'https://script.google.com/macros/s/AKfycbzzG_sNjKzoHPEu2nKBOSQ2MLKrH_K-imf_ilZHBaku-F3FQlV2KRug0gQoHySonJF1/exec';
-  let allData = {}; // { person: [dateStr, ...] }
+  let scriptUrl = localStorage.getItem(SCRIPT_URL_KEY) || DEFAULT_SCRIPT_URL;
+  let allData = {};
 
-  // ── Generate Wednesdays after Aug 3 through Dec 2026 ──────
-  function getWednesdays() {
-    const wednesdays = [];
-    const start = new Date(2026, 7, 4);  // August 4 (first eligible Wednesday is Aug 5)
-    const end   = new Date(2026, 11, 31); // December 31
-    const d = new Date(start);
-    while (d <= end) {
-      if (d.getDay() === 3) {
-        wednesdays.push(new Date(d));
-      }
-      d.setDate(d.getDate() + 1);
+  // ── Generate Jul 27/29 plus Wednesdays from Aug through Dec 2026 ──
+  function getAvailableDates() {
+    const result = [
+      new Date(2026, 6, 27, 12, 0, 0),
+      new Date(2026, 6, 29, 12, 0, 0)
+    ];
+    const cursor = new Date(2026, 7, 4, 12, 0, 0);
+    const end = new Date(2026, 11, 31, 12, 0, 0);
+    while (cursor <= end) {
+      if (cursor.getDay() === 3) result.push(new Date(cursor));
+      cursor.setDate(cursor.getDate() + 1);
     }
-    return wednesdays;
+    return result;
   }
 
   function formatDate(d) {
@@ -627,48 +643,78 @@
     return `${d.getMonth() + 1}/${d.getDate()}`;
   }
 
+  function formatWeekday(d) {
+    return d.getDay() === 1 ? '週一' : '週三';
+  }
+
   const MONTH_NAMES = {
     1: '一月 January', 2: '二月 February', 3: '三月 March',
-    4: '四月 April',   5: '五月 May',      6: '六月 June',
-    7: '七月 July',    8: '八月 August',   9: '九月 September',
+    4: '四月 April', 5: '五月 May', 6: '六月 June',
+    7: '七月 July', 8: '八月 August', 9: '九月 September',
     10: '十月 October', 11: '十一月 November', 12: '十二月 December'
   };
-  const wednesdays = getWednesdays();
+  const availableDates = getAvailableDates();
 
-  // ── UI init ───────────────────────────────────────────────
-  window.onload = () => {
+  // ── UI init ──────────────────────────────────────────────
+  window.onload = async () => {
+    document.getElementById('script-url-input').value = scriptUrl;
     buildDateGrid([]);
-    if (scriptUrl !== 'YOUR_APPS_SCRIPT_URL') loadAllData();
+    await testConnection(false);
+    await loadAllData();
   };
 
-  // ── Build date grid ───────────────────────────────────────
+  function setConnectionResult(message, ok = false) {
+    const el = document.getElementById('connection-result');
+    el.textContent = message;
+    el.style.color = ok ? '#58715b' : '#a34234';
+  }
+
+  function normalizeScriptUrl(value) {
+    const url = String(value || '').trim();
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/(exec|dev)(\?.*)?$/.test(url)) {
+      throw new Error('請貼上 Apps Script 的 Web App 網址，且網址需以 /exec 結尾');
+    }
+    return url.split('?')[0];
+  }
+
+  async function saveScriptUrlAndTest() {
+    try {
+      scriptUrl = normalizeScriptUrl(document.getElementById('script-url-input').value);
+      localStorage.setItem(SCRIPT_URL_KEY, scriptUrl);
+      setConnectionResult('正在測試連線…');
+      const ok = await testConnection(true);
+      if (ok) await loadAllData();
+    } catch (error) {
+      setConnectionResult(error.message);
+    }
+  }
+
+  // ── Build date grid ──────────────────────────────────────
   function buildDateGrid(checked) {
     const container = document.getElementById('dates-container');
     container.innerHTML = '';
-
     const groups = {};
-    wednesdays.forEach(d => {
-      const m = d.getMonth() + 1;
-      if (!groups[m]) groups[m] = [];
-      groups[m].push(d);
+
+    availableDates.forEach(d => {
+      const month = d.getMonth() + 1;
+      if (!groups[month]) groups[month] = [];
+      groups[month].push(d);
     });
 
-    Object.keys(groups).sort((a, b) => Number(a) - Number(b)).forEach(m => {
+    Object.keys(groups).sort((a, b) => Number(a) - Number(b)).forEach(month => {
       const monthDiv = document.createElement('div');
       monthDiv.className = 'month-group';
 
       const label = document.createElement('div');
       label.className = 'month-label';
-      label.textContent = MONTH_NAMES[m];
+      label.textContent = MONTH_NAMES[month];
       monthDiv.appendChild(label);
 
       const grid = document.createElement('div');
       grid.className = 'dates-grid';
 
-      groups[m].forEach(d => {
+      groups[month].forEach(d => {
         const key = formatDate(d);
-        const isChecked = checked.includes(key);
-
         const item = document.createElement('div');
         item.className = 'date-item';
 
@@ -676,12 +722,11 @@
         cb.type = 'checkbox';
         cb.id = `date-${key}`;
         cb.value = key;
-        cb.checked = isChecked;
+        cb.checked = checked.includes(key);
         cb.addEventListener('change', updateCount);
 
         const lbl = document.createElement('label');
-        lbl.htmlFor = `date-${key}`;
-
+        lbl.htmlFor = cb.id;
         lbl.innerHTML = `
           <div class="checkbox-box">
             <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
@@ -690,7 +735,7 @@
           </div>
           <div class="date-text">
             <div class="date-main">${formatDisplay(d)}</div>
-            <div class="date-sub">週三</div>
+            <div class="date-sub">${formatWeekday(d)}</div>
           </div>`;
 
         item.appendChild(cb);
@@ -706,136 +751,165 @@
   }
 
   function updateCount() {
-    const all = document.querySelectorAll('#dates-container input[type="checkbox"]:checked');
-    document.getElementById('count-badge').textContent = all.length;
+    const checked = document.querySelectorAll('#dates-container input[type="checkbox"]:checked');
+    document.getElementById('count-badge').textContent = checked.length;
   }
 
-  // ── Person change ─────────────────────────────────────────
   function onPersonChange() {
     const person = document.getElementById('person').value;
     const section = document.getElementById('dates-section');
-
     if (!person) {
       section.classList.remove('visible');
       return;
     }
-
-    const checked = allData[person] || [];
-    buildDateGrid(checked);
+    buildDateGrid(allData[person] || []);
     section.classList.add('visible');
   }
 
-
-  // ── API helper ────────────────────────────────────────────
+  // ── API helper ───────────────────────────────────────────
   async function callApi(paramsObject) {
+    if (!scriptUrl) throw new Error('尚未設定 Apps Script URL');
+
     const url = new URL(scriptUrl);
     Object.entries({ ...paramsObject, _: Date.now().toString() }).forEach(([key, value]) => {
-      url.searchParams.set(key, value);
+      url.searchParams.set(key, String(value));
     });
 
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      cache: 'no-store',
-      redirect: 'follow'
-    });
-    const text = await res.text();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-    let data;
+    let response;
     try {
-      data = JSON.parse(text);
-    } catch (_) {
-      const preview = text.replace(/\s+/g, ' ').slice(0, 140);
-      throw new Error(`後端沒有回傳 JSON（可能尚未重新部署或權限未設為「所有人」）：${preview}`);
+      response = await fetch(url.toString(), {
+        method: 'GET',
+        cache: 'no-store',
+        redirect: 'follow',
+        signal: controller.signal
+      });
+    } catch (error) {
+      if (error.name === 'AbortError') throw new Error('連線逾時，請確認 Web App 已部署且允許所有人存取');
+      throw new Error(`無法連到 Apps Script：${error.message}`);
+    } finally {
+      clearTimeout(timeoutId);
     }
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    if (data && data.success === false) throw new Error(data.error || '後端回報失敗');
+    const text = await response.text();
+    let payload;
+    try {
+      payload = JSON.parse(text);
+    } catch (error) {
+      const preview = text.replace(/\s+/g, ' ').slice(0, 180);
+      throw new Error(`後端沒有回傳 JSON。常見原因是權限或部署網址錯誤：${preview}`);
+    }
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (payload && payload.success === false) throw new Error(payload.error || '後端回報失敗');
+    return payload;
+  }
+
+  async function testConnection(showSuccess = true) {
+    try {
+      const payload = await callApi({ action: 'ping' });
+      if (payload.spreadsheetId !== EXPECTED_SPREADSHEET_ID) {
+        throw new Error(`目前 Web App 綁到其他試算表：${payload.spreadsheetId || '未回傳 ID'}`);
+      }
+      if (Number(payload.sheetId) !== EXPECTED_SHEET_ID) {
+        throw new Error(`目前 Web App 綁到錯誤分頁 gid：${payload.sheetId || '未回傳 gid'}`);
+      }
+      if (showSuccess) {
+        setConnectionResult(`✓ 連線成功｜${payload.sheetName || '工作表'}｜後端 ${payload.version || '已連線'}`, true);
+      }
+      return true;
+    } catch (error) {
+      setConnectionResult(`✕ ${error.message}`);
+      return false;
+    }
+  }
+
+  function normalizeData(payload) {
+    const source = payload && payload.success === true && payload.data ? payload.data : payload;
+    const data = source && typeof source === 'object' ? { ...source } : {};
+    const jennifer = Array.isArray(data.Jennifer) ? data.Jennifer : [];
+    const lark = Array.isArray(data.Lark) ? data.Lark : [];
+    data.Jennifer = [...new Set([...jennifer, ...lark])];
+    delete data.Lark;
+    PEOPLE.forEach(person => {
+      if (!Array.isArray(data[person])) data[person] = [];
+      data[person] = data[person].filter(date => /^2026-\d{2}-\d{2}$/.test(date));
+    });
     return data;
   }
 
-  // ── Load all data ─────────────────────────────────────────
   async function loadAllData() {
-    if (!scriptUrl) return;
-    setStatus('loading', '正在讀取資料...');
-
+    setStatus('loading', '正在讀取資料…');
     try {
-      const payload = await callApi({ action: 'get' });
-      const data = payload && payload.success === true && payload.data ? payload.data : payload;
-
-      // 同時相容舊後端曾回傳的 Lark 資料。
-      allData = data && typeof data === 'object' ? { ...data } : {};
-      const jenniferDates = Array.isArray(allData.Jennifer) ? allData.Jennifer : [];
-      const legacyDates = Array.isArray(allData.Lark) ? allData.Lark : [];
-      allData.Jennifer = [...new Set([...jenniferDates, ...legacyDates])];
-      delete allData.Lark;
+      allData = normalizeData(await callApi({ action: 'get' }));
       clearStatus();
       renderOverview();
-      const person = document.getElementById('person').value;
-      if (person) onPersonChange();
-    } catch (e) {
-      setStatus('error', '讀取失敗，請確認 Apps Script URL 是否正確');
-      console.error(e);
+      if (document.getElementById('person').value) onPersonChange();
+    } catch (error) {
+      setStatus('error', `讀取失敗：${error.message}`);
+      console.error(error);
     }
   }
 
-  // ── Save dates ────────────────────────────────────────────
+  function sameDates(a, b) {
+    const left = [...a].sort();
+    const right = [...b].sort();
+    return left.length === right.length && left.every((value, index) => value === right[index]);
+  }
+
+  // ── Save dates and verify by reading them back ───────────
   async function saveDates() {
     const person = document.getElementById('person').value;
     if (!person) return;
-    if (!scriptUrl) {
-      setStatus('error', '請先設定 Google Apps Script URL');
-      return;
-    }
 
     const checked = Array.from(
       document.querySelectorAll('#dates-container input[type="checkbox"]:checked')
-    ).map(cb => cb.value);
+    ).map(cb => cb.value).sort();
+
     const btn = document.getElementById('save-btn');
     btn.disabled = true;
-    btn.textContent = '儲存中...';
-    setStatus('loading', `正在儲存 ${person} 的資料...`);
+    btn.textContent = '儲存中…';
+    setStatus('loading', `正在儲存 ${person} 的資料…`);
 
     try {
-      const data = await callApi({
-        action: 'set',
-        person: person,
-        dates: checked.join(',')
-      });
+      await callApi({ action: 'set', person, dates: checked.join(',') });
 
-      if (data.success !== false) {
-        allData[person] = checked;
-        setStatus('success', `✓ 已儲存！共選取 ${checked.length} 個無法出席日期`);
-        renderOverview();
-      } else {
-        throw new Error(data.error || 'Unknown error');
+      // Do not trust a success response alone—read the sheet back immediately.
+      const verifiedData = normalizeData(await callApi({ action: 'get' }));
+      const savedDates = verifiedData[person] || [];
+      if (!sameDates(savedDates, checked)) {
+        throw new Error('後端有回應，但從試算表讀回的內容不一致。請確認目前 /exec 是新部署版本');
       }
-    } catch (e) {
-      setStatus('error', '儲存失敗：' + e.message);
-      console.error(e);
+
+      allData = verifiedData;
+      setStatus('success', `✓ 已寫入並驗證！共選取 ${checked.length} 個無法出席日期`);
+      renderOverview();
+    } catch (error) {
+      setStatus('error', `儲存失敗：${error.message}`);
+      console.error(error);
     } finally {
       btn.disabled = false;
       btn.textContent = '儲存我的回覆';
     }
   }
 
-  // ── Tab switch ────────────────────────────────────────────
   function switchTab(tab) {
     document.getElementById('tab-person').style.display = tab === 'person' ? 'block' : 'none';
-    document.getElementById('tab-date').style.display   = tab === 'date'   ? 'block' : 'none';
+    document.getElementById('tab-date').style.display = tab === 'date' ? 'block' : 'none';
     document.querySelectorAll('.overview-tab').forEach((el, i) => {
       el.classList.toggle('active', (i === 0 && tab === 'person') || (i === 1 && tab === 'date'));
     });
   }
 
-  // ── Overview ──────────────────────────────────────────────
   function renderOverview() {
     const card = document.getElementById('overview-card');
     const tbody = document.getElementById('overview-body');
     tbody.innerHTML = '';
 
-    // 依成員
     PEOPLE.forEach(person => {
-      const dates = allData[person] || [];
+      const dates = [...(allData[person] || [])].sort();
       const tr = document.createElement('tr');
       const tdName = document.createElement('td');
       tdName.className = 'person-name';
@@ -847,49 +921,47 @@
       } else {
         const chips = document.createElement('div');
         chips.className = 'date-chips';
-        dates.sort().forEach(ds => {
+        dates.forEach(dateString => {
           const chip = document.createElement('span');
           chip.className = 'date-chip';
-          const d = new Date(ds + 'T00:00:00');
-          chip.textContent = `${d.getMonth()+1}/${d.getDate()}`;
+          const d = new Date(`${dateString}T00:00:00`);
+          chip.textContent = `${d.getMonth() + 1}/${d.getDate()}`;
           chips.appendChild(chip);
         });
         tdDates.appendChild(chips);
       }
+
       tr.appendChild(tdName);
       tr.appendChild(tdDates);
       tbody.appendChild(tr);
     });
 
-    // 依日期
     const dateBody = document.getElementById('date-overview-body');
     dateBody.innerHTML = '';
-    wednesdays.forEach(d => {
+    availableDates.forEach(d => {
       const key = formatDate(d);
-      const absentPeople = PEOPLE.filter(p => (allData[p] || []).includes(key));
-
+      const absentPeople = PEOPLE.filter(person => (allData[person] || []).includes(key));
       const row = document.createElement('div');
       row.className = 'date-row';
 
-      const lbl = document.createElement('div');
-      lbl.className = 'date-row-label';
-      lbl.innerHTML = `${d.getMonth()+1}/${d.getDate()}<small>週三</small>`;
+      const label = document.createElement('div');
+      label.className = 'date-row-label';
+      label.innerHTML = `${d.getMonth() + 1}/${d.getDate()}<small>${formatWeekday(d)}</small>`;
 
       const right = document.createElement('div');
       right.className = 'absence-chips';
-
       if (absentPeople.length === 0) {
         right.innerHTML = '<span class="all-present">✓ 全員出席</span>';
       } else {
-        absentPeople.forEach(p => {
+        absentPeople.forEach(person => {
           const chip = document.createElement('span');
           chip.className = 'absence-chip';
-          chip.textContent = p;
+          chip.textContent = person;
           right.appendChild(chip);
         });
       }
 
-      row.appendChild(lbl);
+      row.appendChild(label);
       row.appendChild(right);
       dateBody.appendChild(row);
     });
@@ -897,14 +969,13 @@
     card.style.display = 'block';
   }
 
-  // ── Status helpers ────────────────────────────────────────
-  function setStatus(type, msg) {
+  function setStatus(type, message) {
     const bar = document.getElementById('status-bar');
-    const txt = document.getElementById('status-text');
     bar.className = type;
-    txt.textContent = msg;
+    document.getElementById('status-text').textContent = message;
     bar.style.display = 'flex';
   }
+
   function clearStatus() {
     document.getElementById('status-bar').style.display = 'none';
   }
