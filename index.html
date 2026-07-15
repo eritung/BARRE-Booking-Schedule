@@ -600,7 +600,7 @@
   const PEOPLE = ['Sunny', 'Jessica', 'Eri', 'Irene', 'Jennifer', 'Ally', '巧雲', '巧雲姐'];
   const EXPECTED_SPREADSHEET_ID = '1bIXGJTm5rqydW_U1cjzgKa3Cmt7jcseAphwcRcvifrM';
   const EXPECTED_SHEET_ID = 905430503;
-  const scriptUrl = 'https://script.google.com/macros/s/AKfycbzu4EYkFZvjWmYyQRGnaw5Xz4E0ZpV99tpVMOuZnayspAKIbiRpGQBUNf_na7pYXT4U/exec';
+  const scriptUrl = 'https://script.google.com/macros/s/AKfycbzIKDK0BndFhVmWKP2UesCwWy-QQpJKnLJs9J_J9n7WL5PYdVPTYGYKaC7yVisjd7th/exec';
   let allData = {};
 
   // ── Generate Jul 27/29 plus Wednesdays from Aug through Dec 2026 ──
@@ -641,12 +641,11 @@
   const availableDates = getAvailableDates();
 
   // ── UI init ──────────────────────────────────────────────
-  window.onload = async () => {
+  // DOM 一完成就開始抓資料，不等待字型與其他資源全部載完。
+  document.addEventListener('DOMContentLoaded', async () => {
     buildDateGrid([]);
-    setStatus('loading', '正在連線 Google Sheets…');
-    const connected = await testConnection();
-    if (connected) await loadAllData();
-  };
+    await loadAllData();
+  });
 
   // ── Build date grid ──────────────────────────────────────
   function buildDateGrid(checked) {
@@ -735,7 +734,7 @@
     });
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     let response;
     try {
@@ -766,22 +765,6 @@
     return payload;
   }
 
-  async function testConnection() {
-    try {
-      const payload = await callApi({ action: 'ping' });
-      if (payload.spreadsheetId !== EXPECTED_SPREADSHEET_ID) {
-        throw new Error(`目前 Web App 綁到其他試算表：${payload.spreadsheetId || '未回傳 ID'}`);
-      }
-      if (Number(payload.sheetId) !== EXPECTED_SHEET_ID) {
-        throw new Error(`目前 Web App 綁到錯誤分頁 gid：${payload.sheetId || '未回傳 gid'}`);
-      }
-      return true;
-    } catch (error) {
-      setStatus('error', `連線失敗：${error.message}`);
-      return false;
-    }
-  }
-
   function normalizeData(payload) {
     const source = payload && payload.success === true && payload.data ? payload.data : payload;
     const data = source && typeof source === 'object' ? { ...source } : {};
@@ -799,7 +782,14 @@
   async function loadAllData() {
     setStatus('loading', '正在讀取資料…');
     try {
-      allData = normalizeData(await callApi({ action: 'get' }));
+      const payload = await callApi({ action: 'get' });
+      if (payload.spreadsheetId !== EXPECTED_SPREADSHEET_ID) {
+        throw new Error(`目前 Web App 綁到其他試算表：${payload.spreadsheetId || '未回傳 ID'}`);
+      }
+      if (Number(payload.sheetId) !== EXPECTED_SHEET_ID) {
+        throw new Error(`目前 Web App 綁到錯誤分頁 gid：${payload.sheetId || '未回傳 gid'}`);
+      }
+      allData = normalizeData(payload);
       clearStatus();
       renderOverview();
       if (document.getElementById('person').value) onPersonChange();
@@ -830,16 +820,14 @@
     setStatus('loading', `正在儲存 ${person} 的資料…`);
 
     try {
-      await callApi({ action: 'set', person, dates: checked.join(',') });
-
-      // Do not trust a success response alone—read the sheet back immediately.
-      const verifiedData = normalizeData(await callApi({ action: 'get' }));
-      const savedDates = verifiedData[person] || [];
+      const payload = await callApi({ action: 'set', person, dates: checked.join(',') });
+      const savedDates = Array.isArray(payload.dates) ? payload.dates : [];
       if (!sameDates(savedDates, checked)) {
-        throw new Error('後端有回應，但從試算表讀回的內容不一致。請確認目前 /exec 是新部署版本');
+        throw new Error('後端有回應，但寫入後驗證內容不一致');
       }
 
-      allData = verifiedData;
+      // 後端已完成寫入後讀回驗證，前端直接更新該成員，省下一次完整下載。
+      allData[person] = savedDates;
       setStatus('success', `✓ 已寫入並驗證！共選取 ${checked.length} 個無法出席日期`);
       renderOverview();
     } catch (error) {
