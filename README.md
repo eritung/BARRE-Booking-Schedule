@@ -3,6 +3,8 @@
 讓 Sunny、Jessica、Eri、Irene、Jennifer、Ally 勾選 2026/8/3 之後至 12 月底，每個週三無法出席的日期。  
 資料儲存在 Google Sheets，網頁架設在 GitHub Pages。
 
+> 本版本已加入舊資料相容處理：畫面只會顯示 Jennifer，但仍可讀取並更新原本 Lark 對應的試算表資料列，不必重建既有資料。
+
 ---
 
 ## 📁 檔案說明

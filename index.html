@@ -527,11 +527,11 @@
       <select id="person" onchange="onPersonChange()">
         <option value="">── 請選擇 ──</option>
         <option>Sunny</option>
-        <option>Jennifer</option>
+        <option>Jessica</option>
         <option>Eri</option>
         <option>Irene</option>
+        <option>Jennifer</option>
         <option>Ally</option>
-        <option>Jessica</option>
       </select>
     </div>
   </div>
@@ -595,7 +595,9 @@
 
 <script>
   // ── Config ───────────────────────────────────────────────
-  const PEOPLE = ['Sunny', 'Jennifer', 'Eri', 'Irene', 'Ally', 'Jessica'];
+  const PEOPLE = ['Sunny', 'Jessica', 'Eri', 'Irene', 'Jennifer', 'Ally'];
+  // 舊版試算表仍以 Lark 作為資料列名稱；畫面顯示 Jennifer，傳輸時自動相容舊資料。
+  const BACKEND_PERSON_MAP = { Jennifer: 'Lark' };
   const SCRIPT_URL_KEY = 'absenceTrackerScriptUrl';
 
   // ⬇️ 將下方 YOUR_APPS_SCRIPT_URL 換成你的 Google Apps Script 網址
@@ -731,9 +733,17 @@
     setStatus('loading', '正在讀取資料...');
 
     try {
-      const res = await fetch(`${scriptUrl}?action=get`, { method: 'GET' });
+      const params = new URLSearchParams({ action: 'get', _: Date.now().toString() });
+      const res = await fetch(`${scriptUrl}?${params}`, { method: 'GET', cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      allData = data;
+
+      // 將舊後端的 Lark 資料轉成 Jennifer，避免更名後讀不到既有內容。
+      allData = data && typeof data === 'object' ? { ...data } : {};
+      const jenniferDates = Array.isArray(allData.Jennifer) ? allData.Jennifer : [];
+      const legacyDates = Array.isArray(allData.Lark) ? allData.Lark : [];
+      allData.Jennifer = [...new Set([...jenniferDates, ...legacyDates])];
+      delete allData.Lark;
       clearStatus();
       renderOverview();
       const person = document.getElementById('person').value;
@@ -756,6 +766,7 @@
     const checked = Array.from(
       document.querySelectorAll('#dates-container input[type="checkbox"]:checked')
     ).map(cb => cb.value);
+    const backendPerson = BACKEND_PERSON_MAP[person] || person;
 
     const btn = document.getElementById('save-btn');
     btn.disabled = true;
@@ -765,10 +776,12 @@
     try {
       const params = new URLSearchParams({
         action: 'set',
-        person: person,
-        dates: checked.join(',')
+        person: backendPerson,
+        dates: checked.join(','),
+        _: Date.now().toString()
       });
-      const res = await fetch(`${scriptUrl}?${params}`, { method: 'GET' });
+      const res = await fetch(`${scriptUrl}?${params}`, { method: 'GET', cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
       if (data.success) {
