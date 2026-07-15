@@ -596,8 +596,6 @@
 <script>
   // ── Config ───────────────────────────────────────────────
   const PEOPLE = ['Sunny', 'Jessica', 'Eri', 'Irene', 'Jennifer', 'Ally'];
-  // 舊版試算表仍以 Lark 作為資料列名稱；畫面顯示 Jennifer，傳輸時自動相容舊資料。
-  const BACKEND_PERSON_MAP = { Jennifer: 'Lark' };
   const SCRIPT_URL_KEY = 'absenceTrackerScriptUrl';
 
   // ⬇️ 將下方 YOUR_APPS_SCRIPT_URL 換成你的 Google Apps Script 網址
@@ -727,18 +725,44 @@
     section.classList.add('visible');
   }
 
+
+  // ── API helper ────────────────────────────────────────────
+  async function callApi(paramsObject) {
+    const url = new URL(scriptUrl);
+    Object.entries({ ...paramsObject, _: Date.now().toString() }).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      cache: 'no-store',
+      redirect: 'follow'
+    });
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      const preview = text.replace(/\s+/g, ' ').slice(0, 140);
+      throw new Error(`後端沒有回傳 JSON（可能尚未重新部署或權限未設為「所有人」）：${preview}`);
+    }
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (data && data.success === false) throw new Error(data.error || '後端回報失敗');
+    return data;
+  }
+
   // ── Load all data ─────────────────────────────────────────
   async function loadAllData() {
     if (!scriptUrl) return;
     setStatus('loading', '正在讀取資料...');
 
     try {
-      const params = new URLSearchParams({ action: 'get', _: Date.now().toString() });
-      const res = await fetch(`${scriptUrl}?${params}`, { method: 'GET', cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const payload = await callApi({ action: 'get' });
+      const data = payload && payload.success === true && payload.data ? payload.data : payload;
 
-      // 將舊後端的 Lark 資料轉成 Jennifer，避免更名後讀不到既有內容。
+      // 同時相容舊後端曾回傳的 Lark 資料。
       allData = data && typeof data === 'object' ? { ...data } : {};
       const jenniferDates = Array.isArray(allData.Jennifer) ? allData.Jennifer : [];
       const legacyDates = Array.isArray(allData.Lark) ? allData.Lark : [];
@@ -766,25 +790,19 @@
     const checked = Array.from(
       document.querySelectorAll('#dates-container input[type="checkbox"]:checked')
     ).map(cb => cb.value);
-    const backendPerson = BACKEND_PERSON_MAP[person] || person;
-
     const btn = document.getElementById('save-btn');
     btn.disabled = true;
     btn.textContent = '儲存中...';
     setStatus('loading', `正在儲存 ${person} 的資料...`);
 
     try {
-      const params = new URLSearchParams({
+      const data = await callApi({
         action: 'set',
-        person: backendPerson,
-        dates: checked.join(','),
-        _: Date.now().toString()
+        person: person,
+        dates: checked.join(',')
       });
-      const res = await fetch(`${scriptUrl}?${params}`, { method: 'GET', cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
 
-      if (data.success) {
+      if (data.success !== false) {
         allData[person] = checked;
         setStatus('success', `✓ 已儲存！共選取 ${checked.length} 個無法出席日期`);
         renderOverview();
