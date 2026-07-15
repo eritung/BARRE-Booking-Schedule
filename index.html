@@ -515,7 +515,7 @@
 <header>
   <div class="header-label">Attendance Tracker · 2026</div>
   <h1>無法出席日期登記</h1>
-  <p>請選擇您的名字，並勾選所有無法出席的週一</p>
+  <p>請選擇您的名字，並勾選所有無法出席的週三</p>
 </header>
 
 <main>
@@ -530,7 +530,7 @@
         <option>Jessica</option>
         <option>Eri</option>
         <option>Irene</option>
-        <option>Lark</option>
+        <option>Jennifer</option>
         <option>Ally</option>
       </select>
     </div>
@@ -546,7 +546,7 @@
   <div class="dates-section" id="dates-section">
     <div class="section-header">
       <div class="section-title">請勾選無法出席的日期</div>
-      <div class="section-hint">僅顯示週一</div>
+      <div class="section-hint">僅顯示週三</div>
     </div>
 
     <div id="dates-container"></div>
@@ -595,26 +595,26 @@
 
 <script>
   // ── Config ───────────────────────────────────────────────
-  const PEOPLE = ['Sunny', 'Jessica', 'Eri', 'Irene', 'Lark', 'Ally'];
+  const PEOPLE = ['Sunny', 'Jessica', 'Eri', 'Irene', 'Jennifer', 'Ally'];
   const SCRIPT_URL_KEY = 'absenceTrackerScriptUrl';
 
   // ⬇️ 將下方 YOUR_APPS_SCRIPT_URL 換成你的 Google Apps Script 網址
   let scriptUrl = 'https://script.google.com/macros/s/AKfycbzzG_sNjKzoHPEu2nKBOSQ2MLKrH_K-imf_ilZHBaku-F3FQlV2KRug0gQoHySonJF1/exec';
   let allData = {}; // { person: [dateStr, ...] }
 
-  // ── Generate Mondays Mar–May 2026 ────────────────────────
-  function getMondays() {
-    const mondays = [];
-    const start = new Date(2026, 2, 30);  // March 30
-    const end   = new Date(2026, 9, 31); // Oct 31
+  // ── Generate Wednesdays after Aug 3 through Dec 2026 ──────
+  function getWednesdays() {
+    const wednesdays = [];
+    const start = new Date(2026, 7, 4);  // August 4 (first eligible Wednesday is Aug 5)
+    const end   = new Date(2026, 11, 31); // December 31
     const d = new Date(start);
     while (d <= end) {
-      if (d.getDay() === 1) {
-        mondays.push(new Date(d));
+      if (d.getDay() === 3) {
+        wednesdays.push(new Date(d));
       }
       d.setDate(d.getDate() + 1);
     }
-    return mondays;
+    return wednesdays;
   }
 
   function formatDate(d) {
@@ -633,7 +633,7 @@
     7: '七月 July',    8: '八月 August',   9: '九月 September',
     10: '十月 October', 11: '十一月 November', 12: '十二月 December'
   };
-  const mondays = getMondays();
+  const wednesdays = getWednesdays();
 
   // ── UI init ───────────────────────────────────────────────
   window.onload = () => {
@@ -647,7 +647,7 @@
     container.innerHTML = '';
 
     const groups = {};
-    mondays.forEach(d => {
+    wednesdays.forEach(d => {
       const m = d.getMonth() + 1;
       if (!groups[m]) groups[m] = [];
       groups[m].push(d);
@@ -690,7 +690,7 @@
           </div>
           <div class="date-text">
             <div class="date-main">${formatDisplay(d)}</div>
-            <div class="date-sub">週一</div>
+            <div class="date-sub">週三</div>
           </div>`;
 
         item.appendChild(cb);
@@ -833,7 +833,7 @@
     // 依日期
     const dateBody = document.getElementById('date-overview-body');
     dateBody.innerHTML = '';
-    mondays.forEach(d => {
+    wednesdays.forEach(d => {
       const key = formatDate(d);
       const absentPeople = PEOPLE.filter(p => (allData[p] || []).includes(key));
 
@@ -842,7 +842,7 @@
 
       const lbl = document.createElement('div');
       lbl.className = 'date-row-label';
-      lbl.innerHTML = `${d.getMonth()+1}/${d.getDate()}<small>週一</small>`;
+      lbl.innerHTML = `${d.getMonth()+1}/${d.getDate()}<small>週三</small>`;
 
       const right = document.createElement('div');
       right.className = 'absence-chips';
