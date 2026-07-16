@@ -89,14 +89,44 @@
 
     /* ── Desktop two-column response area ── */
     .response-layout {
-      display: none;
+      display: grid;
       grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.85fr);
       gap: 28px;
       align-items: start;
-    }
-    .response-layout.visible {
-      display: grid;
       animation: fadeSlideIn 0.35s ease;
+    }
+    .answer-column,
+    .info-column {
+      min-width: 0;
+    }
+    .info-column {
+      display: grid;
+      gap: 20px;
+    }
+    .answer-placeholder {
+      display: flex;
+      min-height: 240px;
+      align-items: center;
+      justify-content: center;
+      padding: 36px 24px;
+      border: 1px dashed var(--border);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.58);
+      color: var(--ink-light);
+      text-align: center;
+      box-shadow: 0 2px 12px var(--shadow);
+    }
+    .answer-placeholder.hidden { display: none; }
+    .answer-placeholder strong {
+      display: block;
+      margin-bottom: 8px;
+      font-family: 'Noto Serif TC', serif;
+      font-size: 18px;
+      color: var(--ink);
+    }
+    .answer-placeholder span {
+      font-size: 13px;
+      line-height: 1.7;
     }
 
     /* ── Person selector ── */
@@ -357,19 +387,16 @@
 
     /* ── All-available groups ── */
     .available-card {
-      display: none;
+      display: block;
       background: linear-gradient(145deg, #fff 0%, var(--sage-pale) 100%);
       border: 1px solid rgba(107, 143, 113, 0.35);
       border-radius: 16px;
       padding: 24px;
       margin: 0;
       box-shadow: 0 2px 12px var(--shadow);
-      position: sticky;
-      top: 24px;
       min-width: 0;
     }
     .available-card.visible {
-      display: block;
       animation: fadeSlideIn 0.35s ease;
     }
     .available-card-header {
@@ -477,7 +504,6 @@
     @media (max-width: 860px) {
       main { max-width: 720px; }
       .response-layout { grid-template-columns: 1fr; }
-      .available-card { position: static; }
     }
 
     @media (max-width: 480px) {
@@ -496,8 +522,8 @@
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 24px;
-      max-width: 640px;
-      margin: 32px auto 0;
+      max-width: none;
+      margin: 0;
       box-shadow: 0 2px 12px var(--shadow);
     }
     .overview-title {
@@ -706,71 +732,86 @@
     <span id="status-text"></span>
   </div>
 
-  <!-- 選擇成員後顯示：左側填答、右側全員可出席日期 -->
+  <!-- 桌機雙欄：左側填答、右側結果與總覽（未選人時也顯示） -->
   <div class="response-layout" id="response-layout">
-    <!-- Dates section -->
-    <div class="dates-section" id="dates-section">
-      <div class="section-header">
-        <div class="section-title">請勾選無法出席的日期</div>
-        <div class="section-hint">7/27 當週：週一＆週三｜8–12月：每週三</div>
-      </div>
-
-      <div id="dates-container"></div>
-
-      <div class="summary-bar">
-        <div class="summary-count">
-          已選取無法出席
-          <span class="count-badge" id="count-badge">0</span>
-          天
-        </div>
-        <div style="font-size:12px;opacity:0.6">點選儲存後生效</div>
-      </div>
-
-      <button id="save-btn" onclick="saveDates()">儲存我的回覆</button>
-    </div>
-
-    <!-- 全員可出席日期 -->
-    <section class="available-card" id="available-card" aria-live="polite">
-      <div class="available-card-header">
+    <div class="answer-column">
+      <div class="answer-placeholder" id="answer-placeholder">
         <div>
-          <div class="available-title">✨ 全員可出席日期</div>
-          <div class="available-description">自動排除任何成員無法出席的日期，並以每 4 個日期整理成一組。</div>
-        </div>
-        <div class="available-total">
-          <strong id="available-total-count">0</strong>
-          <span>個日期</span>
+          <strong>請先選擇填寫者</strong>
+          <span>選擇名字後，這裡會顯示可勾選的日期。</span>
         </div>
       </div>
-      <div class="available-groups" id="available-groups"></div>
-    </section>
-  </div>
 
-  <!-- Overview -->
-  <div class="overview-card" id="overview-card" style="display:none">
-    <div class="overview-title">📋 出席狀況總覽</div>
+      <!-- Dates section -->
+      <div class="dates-section" id="dates-section">
+        <div class="section-header">
+          <div class="section-title">請勾選無法出席的日期</div>
+          <div class="section-hint">7/27 當週：週一＆週三｜8–12月：每週三</div>
+        </div>
 
-    <div class="overview-tabs">
-      <button class="overview-tab active" onclick="switchTab('person')">依成員</button>
-      <button class="overview-tab" onclick="switchTab('date')">依日期</button>
+        <div id="dates-container"></div>
+
+        <div class="summary-bar">
+          <div class="summary-count">
+            已選取無法出席
+            <span class="count-badge" id="count-badge">0</span>
+            天
+          </div>
+          <div style="font-size:12px;opacity:0.6">點選儲存後生效</div>
+        </div>
+
+        <button id="save-btn" onclick="saveDates()">儲存我的回覆</button>
+      </div>
     </div>
 
-    <!-- 依成員 -->
-    <div id="tab-person">
-      <table class="overview-table">
-        <thead>
-          <tr>
-            <th>成員</th>
-            <th>無法出席日期</th>
-          </tr>
-        </thead>
-        <tbody id="overview-body"></tbody>
-      </table>
-    </div>
+    <aside class="info-column">
+      <!-- 全員可出席日期 -->
+      <section class="available-card visible" id="available-card" aria-live="polite">
+        <div class="available-card-header">
+          <div>
+            <div class="available-title">✨ 全員可出席日期</div>
+            <div class="available-description">自動排除任何成員無法出席的日期，並以每 4 個日期整理成一組。</div>
+          </div>
+          <div class="available-total">
+            <strong id="available-total-count">—</strong>
+            <span>個日期</span>
+          </div>
+        </div>
+        <div class="available-groups" id="available-groups">
+          <div class="available-empty" style="color:var(--ink-light);border-color:var(--border)">正在讀取出席資料…</div>
+        </div>
+      </section>
 
-    <!-- 依日期 -->
-    <div id="tab-date" style="display:none">
-      <div id="date-overview-body"></div>
-    </div>
+      <!-- Overview -->
+      <div class="overview-card" id="overview-card" style="display:block">
+        <div class="overview-title">📋 出席狀況總覽</div>
+
+        <div class="overview-tabs">
+          <button class="overview-tab active" onclick="switchTab('person')">依成員</button>
+          <button class="overview-tab" onclick="switchTab('date')">依日期</button>
+        </div>
+
+        <!-- 依成員 -->
+        <div id="tab-person">
+          <table class="overview-table">
+            <thead>
+              <tr>
+                <th>成員</th>
+                <th>無法出席日期</th>
+              </tr>
+            </thead>
+            <tbody id="overview-body">
+              <tr><td colspan="2" class="no-absence">正在讀取出席資料…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 依日期 -->
+        <div id="tab-date" style="display:none">
+          <div id="date-overview-body"></div>
+        </div>
+      </div>
+    </aside>
   </div>
 
 </main>
@@ -898,18 +939,18 @@
   function onPersonChange() {
     const person = document.getElementById('person').value;
     const section = document.getElementById('dates-section');
-    const layout = document.getElementById('response-layout');
+    const placeholder = document.getElementById('answer-placeholder');
 
     if (!person) {
       section.classList.remove('visible');
-      layout.classList.remove('visible');
+      placeholder.classList.remove('hidden');
       return;
     }
 
     const checked = allData[person] || [];
     buildDateGrid(checked);
+    placeholder.classList.add('hidden');
     section.classList.add('visible');
-    layout.classList.add('visible');
   }
 
   // ── Load all data ─────────────────────────────────────────
