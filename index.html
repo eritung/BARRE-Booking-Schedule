@@ -685,7 +685,7 @@
   <div class="dates-section" id="dates-section">
     <div class="section-header">
       <div class="section-title">請勾選無法出席的日期</div>
-      <div class="section-hint">7/27 當週：週一＆週三｜8月起：週三</div>
+      <div class="section-hint">7/27 當週：週一＆週三｜8–12月：每週三</div>
     </div>
 
     <div id="dates-container"></div>
@@ -738,15 +738,15 @@
   const SCRIPT_URL_KEY = 'absenceTrackerScriptUrl';
 
   // ⬇️ 將下方 YOUR_APPS_SCRIPT_URL 換成你的 Google Apps Script 網址
-  let scriptUrl = 'https://script.google.com/macros/s/AKfycbzLZsZPsjLdeVwboEdsutNDGMweJm3XKXFnV49pi4P7B8ixNeQFEai7ZYDcwOL9uOs/exec';
+  let scriptUrl = 'https://script.google.com/macros/s/AKfycbwQTrYcKXBO8myy0PoDQRjqQM3PU-MwscGpqtEcabSOt2aLPzk7h-n6CZcq_A82bpEa/exec';
   let allData = {}; // { person: [dateStr, ...] }
 
   // ── Generate class dates ─────────────────────────────────
-  // 7/27 當週：週一(7/27)＆週三(7/29)；8月起：每週三
+  // 7/27 當週：週一(7/27)＆週三(7/29)；8–12月：每週三
   function getClassDates() {
     const dates = [new Date(2026, 6, 27), new Date(2026, 6, 29)];
-    const start = new Date(2026, 7, 1);  /
-    const end   = new Date(2026, 11, 31);  
+    const start = new Date(2026, 7, 1);  // Aug 1, 2026
+    const end   = new Date(2026, 11, 31); // Dec 31, 2026
     const d = new Date(start);
     while (d <= end) {
       if (d.getDay() === 3) {
@@ -872,9 +872,13 @@
     setStatus('loading', '正在讀取資料...');
 
     try {
-      const res = await fetch(`${scriptUrl}?action=get`, { method: 'GET' });
+      const res = await fetch(`${scriptUrl}?action=get&_=${Date.now()}`, { method: 'GET', cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      PEOPLE.forEach(person => {
+        if (!Array.isArray(data[person])) data[person] = [];
+      });
       allData = data;
       clearStatus();
       renderOverview();
@@ -910,7 +914,9 @@
         person: person,
         dates: checked.join(',')
       });
-      const res = await fetch(`${scriptUrl}?${params}`, { method: 'GET' });
+      params.set('_', Date.now().toString());
+      const res = await fetch(`${scriptUrl}?${params}`, { method: 'GET', cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
       if (data.success) {
