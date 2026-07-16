@@ -329,6 +329,128 @@
       cursor: not-allowed;
     }
 
+
+    /* ── All-available groups ── */
+    .available-card {
+      display: none;
+      background: linear-gradient(145deg, #fff 0%, var(--sage-pale) 100%);
+      border: 1px solid rgba(107, 143, 113, 0.35);
+      border-radius: 16px;
+      padding: 24px;
+      margin: 0 0 28px;
+      box-shadow: 0 2px 12px var(--shadow);
+    }
+    .available-card.visible {
+      display: block;
+      animation: fadeSlideIn 0.35s ease;
+    }
+    .available-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .available-title {
+      font-family: 'Noto Serif TC', serif;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .available-description {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--ink-light);
+    }
+    .available-total {
+      min-width: 58px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: var(--sage);
+      color: #fff;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .available-total strong {
+      display: block;
+      font-family: 'Noto Serif TC', serif;
+      font-size: 20px;
+      line-height: 1;
+      margin-bottom: 3px;
+    }
+    .available-total span {
+      font-size: 10px;
+      opacity: 0.85;
+    }
+    .available-groups {
+      display: grid;
+      gap: 12px;
+    }
+    .available-group {
+      background: rgba(255,255,255,0.88);
+      border: 1px solid rgba(107, 143, 113, 0.25);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .available-group.incomplete {
+      border-style: dashed;
+      background: rgba(255,255,255,0.58);
+    }
+    .available-group-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .available-group-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--sage);
+      letter-spacing: 0.5px;
+    }
+    .available-group-note {
+      font-size: 10px;
+      color: var(--ink-light);
+    }
+    .available-date-list {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+    }
+    .available-date {
+      padding: 9px 5px;
+      border-radius: 9px;
+      background: var(--sage-pale);
+      text-align: center;
+      color: var(--sage);
+    }
+    .available-date strong {
+      display: block;
+      font-size: 13px;
+      line-height: 1.2;
+    }
+    .available-date small {
+      display: block;
+      font-size: 10px;
+      margin-top: 3px;
+      opacity: 0.75;
+    }
+    .available-empty {
+      padding: 18px 14px;
+      border: 1px dashed rgba(200, 82, 80, 0.35);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.65);
+      color: var(--vermillion);
+      font-size: 13px;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 480px) {
+      .available-card-header { align-items: center; }
+      .available-date-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
     /* ── Overview panel ── */
     .overview-card {
       background: #fff;
@@ -544,6 +666,21 @@
     <span id="status-text"></span>
   </div>
 
+  <!-- 全員可出席日期 -->
+  <section class="available-card" id="available-card" aria-live="polite">
+    <div class="available-card-header">
+      <div>
+        <div class="available-title">✨ 全員可出席日期</div>
+        <div class="available-description">自動排除任何成員無法出席的日期，並以每 4 個日期整理成一組。</div>
+      </div>
+      <div class="available-total">
+        <strong id="available-total-count">0</strong>
+        <span>個日期</span>
+      </div>
+    </div>
+    <div class="available-groups" id="available-groups"></div>
+  </section>
+
   <!-- Dates section -->
   <div class="dates-section" id="dates-section">
     <div class="section-header">
@@ -608,8 +745,8 @@
   // 7/27 當週：週一(7/27)＆週三(7/29)；8月起：每週三
   function getClassDates() {
     const dates = [new Date(2026, 6, 27), new Date(2026, 6, 29)];
-    const start = new Date(2026, 7, 1);  // 
-    const end   = new Date(2026, 11, 31); // 
+    const start = new Date(2026, 7, 1);  /
+    const end   = new Date(2026, 11, 31);  
     const d = new Date(start);
     while (d <= end) {
       if (d.getDay() === 3) {
@@ -737,6 +874,7 @@
     try {
       const res = await fetch(`${scriptUrl}?action=get`, { method: 'GET' });
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       allData = data;
       clearStatus();
       renderOverview();
@@ -800,8 +938,60 @@
     });
   }
 
+  // ── 全員可出席日期（每 4 個一組）────────────────────────
+  function renderAvailableGroups() {
+    const card = document.getElementById('available-card');
+    const container = document.getElementById('available-groups');
+    const total = document.getElementById('available-total-count');
+
+    const availableDates = classDates.filter(d => {
+      const key = formatDate(d);
+      return PEOPLE.every(person => !(allData[person] || []).includes(key));
+    });
+
+    total.textContent = availableDates.length;
+    container.innerHTML = '';
+
+    if (availableDates.length === 0) {
+      container.innerHTML = '<div class="available-empty">目前沒有全員都能出席的日期，再喬一下就有機會解鎖團體成就 🥲</div>';
+      card.classList.add('visible');
+      return;
+    }
+
+    for (let i = 0; i < availableDates.length; i += 4) {
+      const groupDates = availableDates.slice(i, i + 4);
+      const isComplete = groupDates.length === 4;
+      const group = document.createElement('div');
+      group.className = `available-group${isComplete ? '' : ' incomplete'}`;
+
+      const head = document.createElement('div');
+      head.className = 'available-group-head';
+      head.innerHTML = `
+        <span class="available-group-name">${isComplete ? `第 ${Math.floor(i / 4) + 1} 組` : '剩餘日期'}</span>
+        <span class="available-group-note">${isComplete ? '共 4 個日期' : `目前 ${groupDates.length} 個，尚未滿 4 個`}</span>`;
+
+      const list = document.createElement('div');
+      list.className = 'available-date-list';
+
+      groupDates.forEach(d => {
+        const date = document.createElement('div');
+        date.className = 'available-date';
+        date.innerHTML = `<strong>${formatDisplay(d)}</strong><small>${WEEKDAYS[d.getDay()]}</small>`;
+        list.appendChild(date);
+      });
+
+      group.appendChild(head);
+      group.appendChild(list);
+      container.appendChild(group);
+    }
+
+    card.classList.add('visible');
+  }
+
   // ── Overview ──────────────────────────────────────────────
   function renderOverview() {
+    renderAvailableGroups();
+
     const card = document.getElementById('overview-card');
     const tbody = document.getElementById('overview-body');
     tbody.innerHTML = '';
