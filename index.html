@@ -261,9 +261,17 @@
     }
     .dates-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 8px;
     }
+    .weekday-head {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-light);
+      padding-bottom: 2px;
+    }
+    .date-empty { visibility: hidden; }
 
     /* Date checkbox item */
     .date-item {
@@ -277,8 +285,9 @@
     .date-item label {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 11px 14px;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 6px;
       border: 1.5px solid var(--border);
       border-radius: 10px;
       cursor: pointer;
@@ -508,6 +517,9 @@
 
     @media (max-width: 480px) {
       main { padding-left: 14px; padding-right: 14px; }
+      .dates-grid { gap: 5px; }
+      .date-item label { padding: 10px 2px; }
+      .date-item .checkbox-box { display: none; }
       .dates-section.visible,
       .available-card { padding: 18px; }
       .section-header { display: block; }
@@ -894,6 +906,22 @@
       const grid = document.createElement('div');
       grid.className = 'dates-grid';
 
+      // 週一～週五表頭
+      ['一', '二', '三', '四', '五'].forEach(w => {
+        const h = document.createElement('div');
+        h.className = 'weekday-head';
+        h.textContent = w;
+        grid.appendChild(h);
+      });
+
+      // 月初不是週一時，前面補空格對齊
+      const offset = groups[ym][0].getDay() - 1;
+      for (let i = 0; i < offset; i++) {
+        const empty = document.createElement('div');
+        empty.className = 'date-empty';
+        grid.appendChild(empty);
+      }
+
       groups[ym].forEach(d => {
         const key = formatDate(d);
         const isChecked = checked.includes(key);
@@ -919,7 +947,6 @@
           </div>
           <div class="date-text">
             <div class="date-main">${formatDisplay(d)}</div>
-            <div class="date-sub">${WEEKDAYS[d.getDay()]}</div>
           </div>`;
 
         item.appendChild(cb);
