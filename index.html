@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>出席確認表 2026</title>
+  <title>出席確認表 2026–2027</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;900&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet" />
   <style>
@@ -701,7 +701,7 @@
 <body>
 
 <header>
-  <div class="header-label">Attendance Tracker · 2026</div>
+  <div class="header-label">Attendance Tracker · 2026–2027</div>
   <h1>無法出席日期登記</h1>
   <p>請選擇您的名字，並勾選所有無法出席的日期</p>
 </header>
@@ -746,7 +746,7 @@
       <div class="dates-section" id="dates-section">
         <div class="section-header">
           <div class="section-title">請勾選無法出席的日期</div>
-          <div class="section-hint">7/27 當週：週一＆週三｜8–12月：每週三</div>
+          <div class="section-hint">2026/12 – 2027/6：每週一至週五</div>
         </div>
 
         <div id="dates-container"></div>
@@ -826,14 +826,15 @@
   let allData = {}; // { person: [dateStr, ...] }
 
   // ── Generate class dates ─────────────────────────────────
-  // 7/27 當週：週一(7/27)＆週三(7/29)；8–12月：每週三
+  // 2026/12/1 ～ 2027/6/30：每週一至週五
   function getClassDates() {
-    const dates = [new Date(2026, 6, 27), new Date(2026, 6, 29)];
-    const start = new Date(2026, 7, 1);  // Aug 1, 2026
-    const end   = new Date(2026, 11, 31); // Dec 31, 2026
+    const dates = [];
+    const start = new Date(2026, 11, 1); // Dec 1, 2026
+    const end   = new Date(2027, 5, 30); // Jun 30, 2027
     const d = new Date(start);
     while (d <= end) {
-      if (d.getDay() === 3) {
+      const day = d.getDay();
+      if (day >= 1 && day <= 5) {
         dates.push(new Date(d));
       }
       d.setDate(d.getDate() + 1);
@@ -844,7 +845,7 @@
   function formatDate(d) {
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    return `2026-${mm}-${dd}`;
+    return `${d.getFullYear()}-${mm}-${dd}`;
   }
 
   function formatDisplay(d) {
@@ -859,6 +860,7 @@
   };
   const WEEKDAYS = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
   const classDates = getClassDates();
+  const CLASS_DATE_KEYS = new Set(classDates.map(formatDate));
 
   // ── UI init ───────────────────────────────────────────────
   window.onload = () => {
@@ -873,24 +875,26 @@
 
     const groups = {};
     classDates.forEach(d => {
-      const m = d.getMonth() + 1;
-      if (!groups[m]) groups[m] = [];
-      groups[m].push(d);
+      const ym = d.getFullYear() * 100 + (d.getMonth() + 1);
+      if (!groups[ym]) groups[ym] = [];
+      groups[ym].push(d);
     });
 
-    Object.keys(groups).sort((a, b) => Number(a) - Number(b)).forEach(m => {
+    Object.keys(groups).sort((a, b) => Number(a) - Number(b)).forEach(ym => {
+      const m = Number(ym) % 100;
+      const y = Math.floor(Number(ym) / 100);
       const monthDiv = document.createElement('div');
       monthDiv.className = 'month-group';
 
       const label = document.createElement('div');
       label.className = 'month-label';
-      label.textContent = MONTH_NAMES[m];
+      label.textContent = `${y} · ${MONTH_NAMES[m]}`;
       monthDiv.appendChild(label);
 
       const grid = document.createElement('div');
       grid.className = 'dates-grid';
 
-      groups[m].forEach(d => {
+      groups[ym].forEach(d => {
         const key = formatDate(d);
         const isChecked = checked.includes(key);
 
@@ -1091,7 +1095,8 @@
 
     // 依成員
     PEOPLE.forEach(person => {
-      const dates = allData[person] || [];
+      // 只顯示本期（2026/12–2027/6）日期，舊資料不列入
+      const dates = (allData[person] || []).filter(ds => CLASS_DATE_KEYS.has(ds));
       const tr = document.createElement('tr');
       const tdName = document.createElement('td');
       tdName.className = 'person-name';

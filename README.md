@@ -5,7 +5,7 @@
 - Spreadsheet ID：`1bIXGJTm5rqydW_U1cjzgKa3Cmt7jcseAphwcRcvifrM`
 - 工作表 gid：`905430503`
 - 成員：Sunny、Jessica、Eri、Irene、Jennifer、Ally、巧雲、巧雲姐
-- 日期：2026/7/27、7/29，以及 2026/8/5～2026/12/30 每週三
+- 日期：2026/12/1～2027/6/30 每週一至週五
 
 
 ## 安裝步驟
